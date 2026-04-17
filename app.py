@@ -6,15 +6,15 @@ Each page is a function called based on st.session_state.
 """
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import streamlit as st
 
-from app.auth import sign_up, sign_in, sign_out
-from app.storage import get_resume, save_resume
-from app.pdf import compile_latex
+from app.auth import sign_in, sign_out, sign_up
 from app.latex_errors import parse_tectonic_error
-
+from app.pdf import compile_latex
+from app.storage import get_resume, save_resume
 
 # ============================================================
 # Page config
@@ -32,6 +32,7 @@ st.set_page_config(
 # Session state initialization
 # ============================================================
 
+
 def _init_session_state() -> None:
     """Ensure all required session keys exist with safe defaults."""
     defaults = {
@@ -41,7 +42,7 @@ def _init_session_state() -> None:
         "current_page": "new_application",
         "last_result": None,
         # Phase 5:
-        "thread_id": None,        # LangGraph thread_id for the current run
+        "thread_id": None,  # LangGraph thread_id for the current run
         "graph_paused_at": None,  # "precheck" or "approval"
     }
     for key, value in defaults.items():
@@ -56,13 +57,21 @@ _init_session_state()
 # Helpers
 # ============================================================
 
+
 def is_logged_in() -> bool:
     return st.session_state["user_id"] is not None
 
 
 def logout() -> None:
     sign_out()
-    for key in ("user_id", "access_token", "email", "last_result", "thread_id", "graph_paused_at"):
+    for key in (
+        "user_id",
+        "access_token",
+        "email",
+        "last_result",
+        "thread_id",
+        "graph_paused_at",
+    ):
         st.session_state[key] = None
     st.session_state["current_page"] = "new_application"
     st.rerun()
@@ -71,6 +80,7 @@ def logout() -> None:
 # ============================================================
 # Page: Auth (login / signup)
 # ============================================================
+
 
 def page_auth() -> None:
     st.title("Pitch Perfect")
@@ -129,9 +139,12 @@ def page_auth() -> None:
 # Page: My Resume
 # ============================================================
 
+
 def page_my_resume() -> None:
     st.title("My Resume")
-    st.caption("Paste your base LaTeX resume here. It's saved to your account and reused for every job application.")
+    st.caption(
+        "Paste your base LaTeX resume here. It's saved to your account and reused for every job application."
+    )
 
     existing = get_resume(st.session_state["user_id"])
 
@@ -154,11 +167,14 @@ def page_my_resume() -> None:
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        if st.button("💾 Save resume", type="primary", use_container_width=True):
+        if st.button("Save resume", type="primary", use_container_width=True):
             if not resume_text.strip():
                 st.error("Resume cannot be empty.")
                 return
-            if "\\documentclass" not in resume_text or "\\end{document}" not in resume_text:
+            if (
+                "\\documentclass" not in resume_text
+                or "\\end{document}" not in resume_text
+            ):
                 st.error(
                     "This doesn't look like a complete LaTeX document. "
                     "It must contain \\documentclass and \\end{document}."
@@ -169,7 +185,7 @@ def page_my_resume() -> None:
             st.rerun()
 
     with col2:
-        if st.button("🔍 Preview PDF", use_container_width=True):
+        if st.button("Preview PDF", use_container_width=True):
             if not resume_text.strip():
                 st.error("Nothing to preview.")
                 return
@@ -204,13 +220,14 @@ def page_my_resume() -> None:
         st.divider()
         st.subheader("Preview")
         st.download_button(
-            label="⬇️ Download preview PDF",
+            label="Download preview PDF",
             data=preview,
             file_name="resume_preview.pdf",
             mime="application/pdf",
             use_container_width=True,
         )
         import base64
+
         b64 = base64.b64encode(preview).decode()
         st.markdown(
             f'<iframe src="data:application/pdf;base64,{b64}" '
@@ -223,9 +240,12 @@ def page_my_resume() -> None:
 # Page: New Application
 # ============================================================
 
+
 def page_new_application() -> None:
     st.title("New Application")
-    st.caption("Paste a job description below and generate a tailored resume and/or cover letter.")
+    st.caption(
+        "Paste a job description below and generate a tailored resume and/or cover letter."
+    )
 
     # Gate: user must have a saved resume first
     existing_resume = get_resume(st.session_state["user_id"])
@@ -249,7 +269,11 @@ def page_new_application() -> None:
 
     request_type_label = st.radio(
         "What do you want to generate?",
-        options=["Both resume and cover letter", "Tailored resume only", "Cover letter only"],
+        options=[
+            "Both resume and cover letter",
+            "Tailored resume only",
+            "Cover letter only",
+        ],
         index=0,
         horizontal=False,
     )
@@ -261,7 +285,7 @@ def page_new_application() -> None:
     }
     request_type = request_type_map[request_type_label]
 
-    if st.button("🚀 Generate", type="primary", use_container_width=True):
+    if st.button("Generate", type="primary", use_container_width=True):
         if not jd_text.strip():
             st.error("Please paste a job description.")
             return
@@ -282,8 +306,9 @@ def _start_new_run(jd_text: str, request_type: str) -> None:
     until the first interrupt (ats_precheck), and navigates to the
     pre-tailoring review page.
     """
-    from app.graph import graph
     import uuid
+
+    from app.graph import graph
 
     thread_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
@@ -316,6 +341,7 @@ def _start_new_run(jd_text: str, request_type: str) -> None:
 # Page: Pre-Tailoring Review (Phase 5, interrupt 1)
 # ============================================================
 
+
 def page_pre_tailoring_review() -> None:
     """
     Shown after the graph pauses at the ats_precheck interrupt.
@@ -323,7 +349,9 @@ def page_pre_tailoring_review() -> None:
     or Augment the base resume with missing keywords.
     """
     st.title("Pre-Tailoring Review")
-    st.caption("Here's how well your base resume matches this job — BEFORE any tailoring.")
+    st.caption(
+        "Here's how well your base resume matches this job before any tailoring."
+    )
 
     from app.graph import graph
 
@@ -359,7 +387,7 @@ def page_pre_tailoring_review() -> None:
     else:
         st.warning(
             "Your base resume doesn't cover many of the JD's keywords. "
-            "Tailoring can only help so much — adding missing experience to your base resume is more effective."
+            "Tailoring can only help so much adding missing experience to your base resume is more effective."
         )
 
     st.divider()
@@ -425,14 +453,13 @@ def _resume_graph_after_precheck() -> None:
 
     graph.update_state(config, {"user_decision": "proceed"})
 
-    with st.spinner("Generating your tailored resume and cover letter... this usually takes 20-40 seconds."):
+    with st.spinner(
+        "Generating your tailored resume and cover letter... this usually takes 20-40 seconds."
+    ):
         try:
             graph.invoke(None, config=config)
         except Exception as e:
-            st.error(
-                f"**Generation failed**\n\n"
-                f"```\n{str(e)[:800]}\n```"
-            )
+            st.error(f"**Generation failed**\n\n```\n{str(e)[:800]}\n```")
             return
 
     # Load the post-generation state from the checkpointer
@@ -446,6 +473,7 @@ def _resume_graph_after_precheck() -> None:
 # ============================================================
 # Page: Augment Resume (stub for next step)
 # ============================================================
+
 
 def page_augment_resume() -> None:
     """
@@ -510,7 +538,7 @@ def page_augment_resume() -> None:
     st.caption(
         "If you genuinely have experience with this (work, projects, coursework), add a short "
         "description below. This gets appended to your base resume so future applications benefit too. "
-        "If not, skip it — that's fine."
+        "If not, skip it that's fine."
     )
 
     with st.form(f"augment_form_{idx}"):
@@ -527,9 +555,7 @@ def page_augment_resume() -> None:
                 f"Add {current_keyword}", type="primary", use_container_width=True
             )
         with col_skip:
-            skip_clicked = st.form_submit_button(
-                "Skip", use_container_width=True
-            )
+            skip_clicked = st.form_submit_button("Skip", use_container_width=True)
 
     if add_clicked:
         if not description.strip() or len(description.strip()) < 10:
@@ -598,8 +624,9 @@ def _return_to_precheck() -> None:
     Simplest approach: start a fresh graph run with the same JD, reusing
     the stashed _last_jd_text.
     """
-    from app.graph import graph
     import uuid
+
+    from app.graph import graph
 
     jd_text = st.session_state.get("_last_jd_text", "")
     if not jd_text:
@@ -647,6 +674,7 @@ def _return_to_precheck() -> None:
 # Page: Review
 # ============================================================
 
+
 def page_review() -> None:
     st.title("Review")
 
@@ -680,7 +708,7 @@ def _render_evaluation_summary(result: dict) -> None:
     if passed:
         st.success("Your application passed all quality checks")
     else:
-        st.warning("Your application has quality issues — see below")
+        st.warning("Your application has quality issues see below")
 
     col1, col2, col3 = st.columns(3)
 
@@ -724,20 +752,17 @@ def _render_added_items(result: dict) -> None:
 
     st.subheader("Added Content")
     if not added:
-        st.caption("The tailored output uses only content from your base resume. Nothing new was added.")
+        st.caption(
+            "The tailored output uses only content from your base resume. Nothing new was added."
+        )
         return
 
     st.caption(
-        "These items appear in the tailored output but are NOT in your base resume. "
+        "These items appear in the tailored output but are not in your base resume. "
         "They were added to improve JD relevance. Review them and decide if you want to keep them."
     )
     for item in added:
         st.markdown(f"- **{item}**")
-
-    st.info(
-        "💡 In a future update, you'll be able to confirm each item individually — "
-        "add it to your base resume if you have the experience, or remove it from this application."
-    )
 
 
 def _render_keyword_coverage(result: dict) -> None:
@@ -816,7 +841,7 @@ def _render_document_tab(tex: str, filename: str, key: str) -> None:
             st.code(parsed.raw, language="text")
 
         st.download_button(
-            label="⬇️ Download .tex source",
+            label="Download .tex source",
             data=tex,
             file_name=filename.replace(".pdf", ".tex"),
             mime="text/plain",
@@ -836,6 +861,7 @@ def _render_document_tab(tex: str, filename: str, key: str) -> None:
     )
 
     import base64
+
     b64 = base64.b64encode(pdf_bytes).decode()
     st.markdown(
         f'<iframe src="data:application/pdf;base64,{b64}" '
@@ -848,7 +874,7 @@ def _render_next_actions() -> None:
     """Buttons to start a new run or go back."""
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🔄 New Application", use_container_width=True, type="primary"):
+        if st.button("New Application", use_container_width=True, type="primary"):
             st.session_state["last_result"] = None
             st.session_state["_last_jd_text"] = ""
             st.session_state["thread_id"] = None
@@ -856,7 +882,7 @@ def _render_next_actions() -> None:
             st.session_state["current_page"] = "new_application"
             st.rerun()
     with col2:
-        if st.button("✏️ Edit My Resume", use_container_width=True):
+        if st.button("Edit My Resume", use_container_width=True):
             st.session_state["current_page"] = "my_resume"
             st.rerun()
 
@@ -864,6 +890,7 @@ def _render_next_actions() -> None:
 # ============================================================
 # Sidebar + routing
 # ============================================================
+
 
 def render_sidebar() -> None:
     st.sidebar.title("Pitch Perfect")
